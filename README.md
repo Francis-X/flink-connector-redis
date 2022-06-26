@@ -1,4 +1,4 @@
-# com.awifi.flink-connector-redis
+# flink-connector-redis
 
 版本: 1.0 
 
