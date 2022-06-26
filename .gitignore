@@ -1,0 +1,17 @@
+## ide
+**/.idea
+*.iml
+
+## backend
+**/target
+**/logs
+**/log
+
+## front
+**/*.lock
+
+## other
+**/.DS_Store
+
+## temp
+**/temp
