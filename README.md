@@ -4,7 +4,7 @@
 
 作者: Francis 
 
-支持 com.awifi.flink 版本: 1.14.4+
+支持flink版本: 1.14.4+
 
 
 
