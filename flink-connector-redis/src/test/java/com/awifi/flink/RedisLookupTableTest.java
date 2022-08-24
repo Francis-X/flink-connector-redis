@@ -18,7 +18,7 @@ import java.util.concurrent.ExecutionException;
  */
 public class RedisLookupTableTest {
 
-    private static final String nodes = "192.168.213.169:6379,192.168.213.170:6379,192.168.213.171:6379,192.168.213.172:6379,192.168.213.173:6379,192.168.213.174:6379";
+    private static final String nodes = "****";
 
     private static final String password = "*****";
 

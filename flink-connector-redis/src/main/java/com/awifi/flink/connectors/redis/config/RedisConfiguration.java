@@ -1,6 +1,7 @@
 package com.awifi.flink.connectors.redis.config;
 
 import com.awifi.flink.table.RedisConnectorOptions;
+import org.apache.flink.configuration.ConfigOption;
 import org.apache.flink.configuration.ReadableConfig;
 
 import java.io.Serializable;
@@ -41,8 +42,7 @@ public class RedisConfiguration implements Serializable {
     }
 
     public String getPassword() {
-        String password = config.get(RedisConnectorOptions.PASSWORD);
-        return password;
+        return config.get(RedisConnectorOptions.PASSWORD);
     }
 
     public Long getTimeout() {
@@ -77,5 +77,9 @@ public class RedisConfiguration implements Serializable {
     public Long getTTL() {
         return config.getOptional(RedisConnectorOptions.TTL)
                 .orElseGet(RedisConnectorOptions.TTL::defaultValue);
+    }
+
+    public <T> T get(ConfigOption<T> configOption) {
+        return config.get(configOption);
     }
 }

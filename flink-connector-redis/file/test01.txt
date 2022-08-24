@@ -1,3 +1,11 @@
-1,file_data1,com.awifi.flink-redis-hash,end1
-2,file_data2,com.awifi.flink-redis-hash,end2
-3,file_data3,com.awifi.flink-redis-hash,end3
+1,file_data1,flink-redis-hash1,end1
+2,file_data2,flink-redis-hash2,end2
+3,file_data3,flink-redis-hash3,end3
+4,file_data4,flink-redis-hash4,end4
+5,file_data5,flink-redis-hash5,end5
+6,file_data6,flink-redis-hash6,end6
+7,file_data7,flink-redis-hash7,end7
+8,file_data8,flink-redis-hash8,end8
+9,file_data9,flink-redis-hash9,end9
+10,file_data10,flink-redis-hash10,end10
+11,file_data11,flink-redis-hash11,end11

@@ -1,5 +1,6 @@
 package com.awifi.flink.table;
 
+import com.awifi.flink.connectors.redis.config.PoolConfig;
 import com.awifi.flink.connectors.redis.config.RedisConfiguration;
 import com.awifi.flink.connectors.redis.options.RedisLookupOptions;
 import org.apache.flink.configuration.ConfigOption;
@@ -55,8 +56,8 @@ public class RedisDynamicTableFactory implements DynamicTableSourceFactory, Dyna
         LOG.debug("input options {}", options);
 
         RedisConfiguration redisConfiguration = new RedisConfiguration(config);
-
-        return new RedisDynamicTableSink(options, resolvedSchema, redisConfiguration);
+        final PoolConfig poolConfig = poolConfig(config);
+        return new RedisDynamicTableSink(options, resolvedSchema, redisConfiguration, poolConfig);
     }
 
 
@@ -75,8 +76,8 @@ public class RedisDynamicTableFactory implements DynamicTableSourceFactory, Dyna
         RedisConfiguration redisConfiguration = new RedisConfiguration(config);
 
         RedisLookupOptions redisLookupOptions = redisLookupOptions(config);
-
-        return new RedisDynamicTableSource(resolvedSchema, redisConfiguration, redisLookupOptions);
+        final PoolConfig poolConfig = poolConfig(config);
+        return new RedisDynamicTableSource(resolvedSchema, redisConfiguration, redisLookupOptions, poolConfig);
     }
 
     /**
@@ -86,14 +87,18 @@ public class RedisDynamicTableFactory implements DynamicTableSourceFactory, Dyna
      * @return
      */
     private RedisLookupOptions redisLookupOptions(ReadableConfig config) {
-        RedisLookupOptions redisLookupOptions = RedisLookupOptions.builder()
+        return RedisLookupOptions.builder()
                 .cacheMaxSize(config.get(RedisConnectorOptions.LOOKUP_CACHE_MAX_ROWS))
                 .cacheExpireMs(config.get(RedisConnectorOptions.LOOKUP_CACHE_TTL).toMillis())
                 .maxRetryTimes(config.get(RedisConnectorOptions.LOOKUP_MAX_RETRIES))
                 .build();
-        return redisLookupOptions;
     }
 
+
+    private PoolConfig poolConfig(ReadableConfig config) {
+        return PoolConfig.builder()
+                .build();
+    }
 
     @Override
     public String factoryIdentifier() {

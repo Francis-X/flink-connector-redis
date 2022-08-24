@@ -1,6 +1,5 @@
 package com.awifi.flink.table;
 
-import com.awifi.flink.connectors.redis.format.RedisRowDataConverter;
 import org.apache.flink.table.types.DataType;
 
 import java.io.Serializable;

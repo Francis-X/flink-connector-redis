@@ -1,12 +1,12 @@
 package com.awifi.flink.connectors.redis.source;
 
 import com.awifi.flink.connectors.redis.client.RedisClientProvider;
-import com.awifi.flink.connectors.redis.client.RedisClientProviderFactory;
-import com.awifi.flink.connectors.redis.config.FlinkLettuceClusterConfig;
-import com.awifi.flink.connectors.redis.exception.UnsupportedLookupRedisCommandException;
 import com.awifi.flink.connectors.redis.options.RedisLookupOptions;
 import com.awifi.flink.connectors.redis.predefined.RedisLookupCommand;
+import com.awifi.flink.util.function.Supplier;
 import io.lettuce.core.cluster.api.sync.RedisClusterCommands;
+import io.lettuce.core.resource.ClientResources;
+import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.apache.flink.shaded.guava30.com.google.common.cache.Cache;
 import org.apache.flink.shaded.guava30.com.google.common.cache.CacheBuilder;
 import org.apache.flink.table.catalog.ResolvedSchema;
@@ -42,16 +42,17 @@ public class RedisLookupFunction extends TableFunction<RowData> {
 
     private final int maxRetryTimes;
 
-    private RedisLookupCommand redisCommand;
+    private final RedisLookupCommand redisCommand;
 
-    private RedisClientProvider redisClientProvider;
+    private final RedisClientProvider redisClientProvider;
 
-    private FlinkLettuceClusterConfig flinkLettuceClusterConfig;
+    private final Supplier<GenericObjectPoolConfig> poolConfigSupplier;
 
+    private final Supplier<ClientResources> resourcesSupplier;
     /**
      * {@link  org.apache.flink.table.catalog.Column }对象未实现序列化接口,不能作为成员变量
      */
-    private List<SourceColumn> columns;
+    private final List<SourceColumn> columns;
 
     private transient RedisClusterCommands<String, String> commands;
 
@@ -59,16 +60,21 @@ public class RedisLookupFunction extends TableFunction<RowData> {
 
     public RedisLookupFunction(ResolvedSchema resolvedSchema,
                                RedisLookupOptions lookupOptions,
-                               FlinkLettuceClusterConfig flinkLettuceClusterConfig,
+                               RedisClientProvider redisClientProvider,
+                               Supplier<GenericObjectPoolConfig> poolConfigSupplier,
+                               Supplier<ClientResources> resourcesSupplier,
                                RedisLookupCommand redisCommand) {
-        Preconditions.checkNotNull(flinkLettuceClusterConfig, "Redis connection  config should not be null");
+        Preconditions.checkNotNull(redisClientProvider, "Redis provider should not be null");
         Preconditions.checkNotNull(redisCommand, "Redis command should not be null");
         this.cacheMaxSize = lookupOptions.getCacheMaxSize();
         this.cacheExpireMs = lookupOptions.getCacheExpireMs();
         this.maxRetryTimes = lookupOptions.getMaxRetryTimes();
-        this.flinkLettuceClusterConfig = flinkLettuceClusterConfig;
+        this.redisClientProvider = redisClientProvider;
+        this.poolConfigSupplier = poolConfigSupplier;
+        this.resourcesSupplier = resourcesSupplier;
         this.columns = resolvedSchema.getColumns().stream().map(column -> new SourceColumn(column.getName(), column.getDataType())).collect(Collectors.toList());
         this.redisCommand = redisCommand;
+        //System.out.println("-------------111111111111-------------------");
     }
 
     @Override
@@ -77,13 +83,13 @@ public class RedisLookupFunction extends TableFunction<RowData> {
                 this.cacheMaxSize != -1L && this.cacheExpireMs != -1L
                         ? CacheBuilder.newBuilder().expireAfterWrite(this.cacheExpireMs, TimeUnit.MILLISECONDS).maximumSize(this.cacheMaxSize).build()
                         : null;
-        this.redisClientProvider = RedisClientProviderFactory.redisClientProvider(flinkLettuceClusterConfig);
 
-        RedisClusterCommands redisClientCommands = redisClientProvider.getRedisClientCommands();
+        RedisClusterCommands redisClientCommands = redisClientProvider.getRedisClientCommands(poolConfigSupplier, resourcesSupplier);
         redisClientCommands.echo("Test");
         this.commands = redisClientCommands;
-        //System.out.println(String.format("------------------open：provider:%s,commands:%s", Integer.toHexString(redisClientProvider.hashCode()), Integer.toHexString(commands.hashCode())));
+        //System.out.println(String.format("------------------open：tableFunction:%s,provider:%s,commands:%s",Integer.toHexString(this.hashCode()), Integer.toHexString(redisClientProvider.hashCode()), Integer.toHexString(commands.hashCode())));
     }
+
 
     /**
      * @param keys
@@ -97,6 +103,7 @@ public class RedisLookupFunction extends TableFunction<RowData> {
             return;
         }
         GenericRowData genericRowData = null;
+        //System.out.println(String.format("------------------eval：tableFunction:%s,provider:%s,commands:%s",Integer.toHexString(this.hashCode()), Integer.toHexString(redisClientProvider.hashCode()), Integer.toHexString(commands.hashCode())));
         for (int retry = 0; retry <= maxRetryTimes; retry++) {
 //            switch (redisCommand) {
 //                case GET: {
@@ -180,15 +187,30 @@ public class RedisLookupFunction extends TableFunction<RowData> {
 
     @Override
     public void close() throws Exception {
-        if (cache != null) {
-            cache.cleanUp();
-            cache = null;
+        Throwable e = null;
+        try {
+            if (cache != null) {
+                cache.cleanUp();
+                cache = null;
+            }
+        } catch (Throwable e1) {
+            e = e1;
+            throw e1;
+        } finally {
+            if (redisClientProvider != null) {
+                //System.out.println(String.format("------------------close：provider:%s,commands:%s", Integer.toHexString(redisClientProvider.hashCode()), Integer.toHexString(commands.hashCode())));
+                if (e != null) {
+                    try {
+                        redisClientProvider.close();
+                    } catch (Throwable e2) {
+                        e.addSuppressed(e2);
+                    }
+                } else {
+                    redisClientProvider.close();
+                }
+            }
         }
 
-        if (redisClientProvider != null) {
-            //System.out.println(String.format("------------------close：provider:%s,commands:%s", Integer.toHexString(redisClientProvider.hashCode()), Integer.toHexString(commands.hashCode())));
-            redisClientProvider.close();
-        }
     }
 }
 

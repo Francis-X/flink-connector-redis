@@ -1,12 +1,16 @@
 package com.awifi.flink.table;
 
-import com.awifi.flink.connectors.redis.config.FlinkLettuceClusterConfig;
+import com.awifi.flink.connectors.redis.client.RedisClientProvider;
+import com.awifi.flink.connectors.redis.client.RedisClientProviderFactory;
+import com.awifi.flink.connectors.redis.config.FlinkLettuceRedisConfig;
+import com.awifi.flink.connectors.redis.config.PoolConfig;
 import com.awifi.flink.connectors.redis.config.RedisConfiguration;
-import com.awifi.flink.connectors.redis.exception.UnsupportedLookupRedisCommandException;
 import com.awifi.flink.connectors.redis.exception.UnsupportedRedisCommandException;
 import com.awifi.flink.connectors.redis.predefined.RedisSinkCommand;
 import com.awifi.flink.connectors.redis.sink.*;
+import com.awifi.flink.util.function.Supplier;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.apache.flink.table.catalog.ResolvedSchema;
 import org.apache.flink.table.connector.ChangelogMode;
 import org.apache.flink.table.connector.sink.DynamicTableSink;
@@ -31,14 +35,17 @@ public class RedisDynamicTableSink implements DynamicTableSink {
     protected Integer parallelism;
 
     private Map<String, String> properties;
-    private transient ResolvedSchema resolvedSchema;
+    private final transient ResolvedSchema resolvedSchema;
 
-    private RedisConfiguration redisConfiguration;
+    private final RedisConfiguration redisConfiguration;
 
-    public RedisDynamicTableSink(Map<String, String> properties, ResolvedSchema resolvedSchema, RedisConfiguration redisConfiguration) {
+    private final PoolConfig poolConfig;
+
+    public RedisDynamicTableSink(Map<String, String> properties, ResolvedSchema resolvedSchema, RedisConfiguration redisConfiguration, PoolConfig poolConfig) {
         this.properties = properties;
         this.resolvedSchema = resolvedSchema;
         this.redisConfiguration = redisConfiguration;
+        this.poolConfig = poolConfig;
         this.parallelism = redisConfiguration.getParallelism();
     }
 
@@ -55,15 +62,22 @@ public class RedisDynamicTableSink implements DynamicTableSink {
     @Override
     public SinkRuntimeProvider getSinkRuntimeProvider(Context context) {
 
-        FlinkLettuceClusterConfig flinkLettuceClusterConfig = FlinkLettuceClusterConfig.build().nodes(redisConfiguration.getNodes())
+        FlinkLettuceRedisConfig flinkLettuceRedisConfig = FlinkLettuceRedisConfig.builder().nodes(redisConfiguration.getNodes())
                 .password(redisConfiguration.getPassword())
                 .database(redisConfiguration.getDatabase())
                 .timeout(redisConfiguration.getTimeout())
                 .maxRedirects(redisConfiguration.getMaxRetries())
                 .build();
+        final RedisClientProvider redisClientProvider = RedisClientProviderFactory.redisClientProvider(flinkLettuceRedisConfig);
 
         RedisSinkCommand redisSinkCommand = validateCommandOption(redisConfiguration.getCommand());
-        return SinkFunctionProvider.of(new RedisSinkFunction(flinkLettuceClusterConfig, redisSinkCommand, redisSinkProcessFunction(redisSinkCommand)), this.parallelism);
+
+        final Supplier<GenericObjectPoolConfig> poolConfigSupplier = RedisClientProvider.defaultGenericObjectPoolConfig(poolConfig);
+
+        return SinkFunctionProvider.of(new RedisSinkFunction(redisClientProvider,
+                poolConfigSupplier, new RedisClientProvider.DefaultClientResourcesSupplier(),
+                redisSinkCommand,
+                redisSinkProcessFunction(redisSinkCommand)), this.parallelism);
     }
 
     private RedisSinkProcessFunction redisSinkProcessFunction(RedisSinkCommand redisSinkCommand) {
@@ -79,7 +93,7 @@ public class RedisDynamicTableSink implements DynamicTableSink {
 
     @Override
     public DynamicTableSink copy() {
-        return new RedisDynamicTableSink(properties, resolvedSchema, redisConfiguration);
+        return new RedisDynamicTableSink(properties, resolvedSchema, redisConfiguration, poolConfig);
     }
 
 

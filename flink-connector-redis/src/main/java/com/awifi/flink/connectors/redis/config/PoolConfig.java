@@ -41,10 +41,15 @@ public class PoolConfig implements Serializable {
         return maxTotal;
     }
 
+    public static PoolConfig.Builder builder() {
+        return new PoolConfig.Builder();
+    }
+
     public static class Builder {
         private int maxTotal = GenericObjectPoolConfig.DEFAULT_MAX_TOTAL;
         private int maxIdle = GenericObjectPoolConfig.DEFAULT_MAX_IDLE;
         private int minIdle = GenericObjectPoolConfig.DEFAULT_MIN_IDLE;
+
 
         /**
          * Sets value for the {@code maxTotal} configuration attribute

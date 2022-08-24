@@ -1,12 +1,17 @@
 package com.awifi.flink.table;
 
-import com.awifi.flink.connectors.redis.config.FlinkLettuceClusterConfig;
+import com.awifi.flink.connectors.redis.client.RedisClientProvider;
+import com.awifi.flink.connectors.redis.client.RedisClientProviderFactory;
+import com.awifi.flink.connectors.redis.config.FlinkLettuceRedisConfig;
+import com.awifi.flink.connectors.redis.config.PoolConfig;
 import com.awifi.flink.connectors.redis.config.RedisConfiguration;
 import com.awifi.flink.connectors.redis.exception.UnsupportedLookupRedisCommandException;
-import com.awifi.flink.connectors.redis.predefined.RedisLookupCommand;
 import com.awifi.flink.connectors.redis.options.RedisLookupOptions;
+import com.awifi.flink.connectors.redis.predefined.RedisLookupCommand;
 import com.awifi.flink.connectors.redis.source.RedisLookupFunction;
+import com.awifi.flink.util.function.Supplier;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.apache.flink.table.catalog.ResolvedSchema;
 import org.apache.flink.table.connector.source.DynamicTableSource;
 import org.apache.flink.table.connector.source.LookupTableSource;
@@ -31,16 +36,19 @@ public class RedisDynamicTableSource implements LookupTableSource {
 
     private RedisLookupOptions redisLookupOptions;
 
-    public RedisDynamicTableSource(ResolvedSchema resolvedSchema, RedisConfiguration redisConfiguration, RedisLookupOptions redisLookupOptions) {
+    private PoolConfig poolConfig;
+
+    public RedisDynamicTableSource(ResolvedSchema resolvedSchema, RedisConfiguration redisConfiguration, RedisLookupOptions redisLookupOptions, PoolConfig poolConfig) {
         this.resolvedSchema = resolvedSchema;
         this.redisConfiguration = redisConfiguration;
         this.redisLookupOptions = redisLookupOptions;
+        this.poolConfig = poolConfig;
     }
 
     @Override
     public LookupRuntimeProvider getLookupRuntimeProvider(LookupContext lookupContext) {
 
-        FlinkLettuceClusterConfig flinkLettuceClusterConfig = FlinkLettuceClusterConfig.build().nodes(redisConfiguration.getNodes())
+        FlinkLettuceRedisConfig flinkLettuceRedisConfig = FlinkLettuceRedisConfig.builder().nodes(redisConfiguration.getNodes())
                 .password(redisConfiguration.getPassword())
                 .database(redisConfiguration.getDatabase())
                 .timeout(redisConfiguration.getTimeout())
@@ -48,13 +56,18 @@ public class RedisDynamicTableSource implements LookupTableSource {
                 .build();
 
         RedisLookupCommand redisCommand = validateCommandOption(redisConfiguration.getCommand());
+        final RedisClientProvider redisClientProvider = RedisClientProviderFactory.redisClientProvider(flinkLettuceRedisConfig);
+        final Supplier<GenericObjectPoolConfig> poolConfigSupplier = RedisClientProvider.defaultGenericObjectPoolConfig(poolConfig);
 
-        return TableFunctionProvider.of(new RedisLookupFunction(resolvedSchema, redisLookupOptions, flinkLettuceClusterConfig, redisCommand));
+        return TableFunctionProvider.of(new RedisLookupFunction(resolvedSchema, redisLookupOptions,
+                redisClientProvider,
+                poolConfigSupplier, new RedisClientProvider.DefaultClientResourcesSupplier(),
+                redisCommand));
     }
 
     @Override
     public DynamicTableSource copy() {
-        return new RedisDynamicTableSource(resolvedSchema, redisConfiguration, redisLookupOptions);
+        return new RedisDynamicTableSource(resolvedSchema, redisConfiguration, redisLookupOptions, poolConfig);
     }
 
 

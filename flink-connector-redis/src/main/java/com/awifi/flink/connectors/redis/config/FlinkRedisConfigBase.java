@@ -13,35 +13,16 @@ public abstract class FlinkRedisConfigBase implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
-    protected final int maxTotal;
-    protected final int maxIdle;
-    protected final int minIdle;
-
     protected final long connectionTimeout;
     protected final String password;
     protected final int database;
 
-    protected FlinkRedisConfigBase(int maxTotal, int maxIdle, int minIdle, long connectionTimeout, String password, int database) {
-        this.maxTotal = maxTotal;
-        this.maxIdle = maxIdle;
-        this.minIdle = minIdle;
+    protected FlinkRedisConfigBase(long connectionTimeout, String password, int database) {
         this.connectionTimeout = connectionTimeout;
         this.password = password;
         this.database = database;
     }
 
-
-    public int getMaxTotal() {
-        return maxTotal;
-    }
-
-    public int getMaxIdle() {
-        return maxIdle;
-    }
-
-    public int getMinIdle() {
-        return minIdle;
-    }
 
     public long getConnectionTimeout() {
         return connectionTimeout;

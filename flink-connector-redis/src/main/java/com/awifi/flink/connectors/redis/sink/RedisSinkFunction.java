@@ -1,18 +1,17 @@
 package com.awifi.flink.connectors.redis.sink;
 
 import com.awifi.flink.connectors.redis.client.RedisClientProvider;
-import com.awifi.flink.connectors.redis.client.RedisClientProviderFactory;
 import com.awifi.flink.connectors.redis.client.RedisCommandsExecutor;
-import com.awifi.flink.connectors.redis.config.FlinkLettuceClusterConfig;
-import com.awifi.flink.connectors.redis.predefined.RedisSinkCommand;
 import com.awifi.flink.connectors.redis.predefined.RedisDataType;
+import com.awifi.flink.connectors.redis.predefined.RedisSinkCommand;
+import com.awifi.flink.util.function.Supplier;
 import io.lettuce.core.cluster.api.sync.RedisClusterCommands;
+import io.lettuce.core.resource.ClientResources;
+import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.functions.sink.RichSinkFunction;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.util.Objects;
 
 /**
  * @author francis
@@ -24,20 +23,28 @@ import java.util.Objects;
 public class RedisSinkFunction<IN> extends RichSinkFunction<IN> {
 
     private static final Logger LOG = LoggerFactory.getLogger(RedisSinkFunction.class);
-
-    private FlinkLettuceClusterConfig flinkLettuceClusterConfig;
+    private static final long serialVersionUID = 1L;
 
     private RedisSinkProcessFunction redisSinkProcessFunction;
 
-    private RedisClientProvider redisClientProvider;
+    private final RedisClientProvider redisClientProvider;
+
+    private final Supplier<GenericObjectPoolConfig> poolConfigSupplier;
+
+    private final Supplier<ClientResources> resourcesSupplier;
 
     private RedisCommandsExecutor.RedisCommands redisCommands;
 
     public RedisSinkCommand redisSinkCommand;
 
-    public RedisSinkFunction(FlinkLettuceClusterConfig flinkLettuceClusterConfig, RedisSinkCommand redisSinkCommand, RedisSinkProcessFunction redisSinkProcessFunction) {
-        Objects.requireNonNull(flinkLettuceClusterConfig, "Redis connection  config should not be null");
-        this.flinkLettuceClusterConfig = flinkLettuceClusterConfig;
+    public RedisSinkFunction(RedisClientProvider redisClientProvider,
+                             Supplier<GenericObjectPoolConfig> poolConfigSupplier,
+                             Supplier<ClientResources> resourcesSupplier,
+                             RedisSinkCommand redisSinkCommand,
+                             RedisSinkProcessFunction redisSinkProcessFunction) {
+        this.redisClientProvider = redisClientProvider;
+        this.poolConfigSupplier = poolConfigSupplier;
+        this.resourcesSupplier = resourcesSupplier;
         this.redisSinkCommand = redisSinkCommand;
         this.redisSinkProcessFunction = redisSinkProcessFunction;
     }
@@ -58,8 +65,7 @@ public class RedisSinkFunction<IN> extends RichSinkFunction<IN> {
     @Override
     public void open(Configuration parameters) throws Exception {
         try {
-            this.redisClientProvider = RedisClientProviderFactory.redisClientProvider(flinkLettuceClusterConfig);
-            RedisClusterCommands redisClientCommands = redisClientProvider.getRedisClientCommands();
+            RedisClusterCommands redisClientCommands = redisClientProvider.getRedisClientCommands(poolConfigSupplier, resourcesSupplier);
             redisClientCommands.echo("Test");
             RedisCommandsExecutor executor = RedisCommandsExecutor.commandsExecutor(redisClientCommands, redisSinkCommand);
             this.redisCommands = executor.redisCommands();
@@ -67,12 +73,14 @@ public class RedisSinkFunction<IN> extends RichSinkFunction<IN> {
             LOG.error("Redis has not been properly initialized: ", e);
             throw e;
         }
+        //System.out.println(String.format("------------------open：provider:%s,commands:%s", Integer.toHexString(redisClientProvider.hashCode()), Integer.toHexString(redisCommands.hashCode())));
     }
 
 
     @Override
     public void close() throws Exception {
         if (redisClientProvider != null) {
+            //System.out.println(String.format("------------------close：provider:%s,commands:%s", Integer.toHexString(redisClientProvider.hashCode()), Integer.toHexString(redisCommands.hashCode())));
             redisClientProvider.close();
         }
     }

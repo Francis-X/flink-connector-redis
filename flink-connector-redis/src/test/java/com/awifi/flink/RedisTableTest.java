@@ -20,9 +20,9 @@ import java.util.concurrent.ExecutionException;
 public class RedisTableTest {
     private static final Logger LOG = LoggerFactory.getLogger(RedisTableTest.class);
 
-    private static final String nodes = "192.168.213.169:6379,192.168.213.170:6379,192.168.213.171:6379,192.168.213.172:6379,192.168.213.173:6379,192.168.213.174:6379";
+    private static final String nodes = "*****";
 
-    private static final String password = "*****";
+    private static final String password = "******";
 
     @Test
     public void testRedisHset() throws ExecutionException, InterruptedException {
@@ -51,17 +51,44 @@ public class RedisTableTest {
         tEnv.executeSql(ddl);
 
         String sql = "insert into redis_hash select * from (values ('com.awifi.flink-redis-hash', '张三','男',19,NOW()))";
-//        for (int i = 0; i < 5; i++) {
-//            String sql = "insert into redis_list select * from (values ('com.awifi.flink-redis-ltrim', '张三" + i + "'))";
-//            TableResult tableResult = tEnv.executeSql(sql);
-//            tableResult.getJobClient().get().getJobExecutionResult().get();
-//            System.out.println(sql);
-//        }
         TableResult tableResult = tEnv.executeSql(sql);
         tableResult.getJobClient().get().getJobExecutionResult().get();
         System.out.println(sql);
     }
 
+    @Test
+    public void testRedisLtrim() throws ExecutionException, InterruptedException {
+        StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+
+        EnvironmentSettings settings = EnvironmentSettings
+                .newInstance()
+                .inStreamingMode()
+                .build();
+
+        StreamTableEnvironment tEnv = StreamTableEnvironment.create(env, settings);
+
+        String ddl = "CREATE TABLE redis_list(\n" +
+                "  `key` varchar,\n" +
+                "  `value1` varchar\n" +
+                ") with (\n" +
+                "  'connector' = 'redis',\n" +
+                "  'nodes' = '" + nodes + "',\n" +
+                "  'password' = '" + password + "',\n" +
+                "  'command' = 'ltrim'\n" +
+                ")";
+        System.out.println(ddl);
+        tEnv.executeSql(ddl);
+        StringBuilder sb = new StringBuilder();
+        sb.append("('flink-redis-ltrim', '张三0')");
+        for (int i = 1; i < 30; i++) {
+            sb.append(",");
+            sb.append("('flink-redis-ltrim', '张三" + i + "')");
+        }
+        String sql = "insert into redis_list select * from (values " + sb.toString() + ")";
+        TableResult tableResult = tEnv.executeSql(sql);
+        tableResult.getJobClient().get().getJobExecutionResult().get();
+        System.out.println(sql);
+    }
 
 //    public static void main(String[] args) {
 //////        String str = "^((?!-)[A-Za-z0-9-]{1,63}(?<!-)\\.)+[A-Za-z]{2,6}(:[1-9][0-9]*)(,((?!-)[A-Za-z0-9-]{1,63}(?<!-)\\.)+[A-Za-z]{2,6}(:[1-9][0-9]*))*$";
